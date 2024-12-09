@@ -1,115 +1,161 @@
-import Image from "next/image";
-import localFont from "next/font/local";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import useIphoneDetect from '@/hooks/useIphoneDetect';
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/pages/index.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [isRecording, setIsRecording] = useState(false);
+  const [assistantResponse, setAssistantResponse] = useState('');
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const ffmpegRef = useRef(null);
+  const [startTime, setStartTime] = useState(null); // Track the start time of the recording
+  let st = null;
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+  const isIphone = useIphoneDetect(); // Detect if it's an iPhone
+
+  useEffect(() => {
+    const initFFmpeg = async () => {
+      const ffmpeg = new FFmpeg({ log: true });
+      await ffmpeg.load();
+      ffmpegRef.current = ffmpeg;
+    };
+
+    initFFmpeg();
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+      setStartTime(Date.now()); // Set start time when recording starts
+      st = Date.now()
+
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const duration = (Date.now() - st) / 1000; // Calculate the duration in seconds
+
+        if (duration < 1) {
+          console.log("Recording is too short, not sending to API.");
+          return; // Skip the API call if the recording is shorter than 1 second
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+
+        if (ffmpegRef.current) {
+          try {
+            const audioUrl = URL.createObjectURL(audioFile);
+            const response = await fetch(audioUrl);
+            const arrayBuffer = await response.arrayBuffer();
+
+            ffmpegRef.current.writeFile('input.webm', new Uint8Array(arrayBuffer));
+
+            await ffmpegRef.current.exec([
+              '-i', 'input.webm',
+              '-ac', '1',
+              '-acodec', 'pcm_s16le',
+              'output.wav'
+            ]);
+
+            const data = await ffmpegRef.current.readFile('output.wav');
+            const outputBlob = new Blob([data.buffer], { type: 'audio/wav' });
+            const outputFile = new File([outputBlob], 'mono_output.wav', { type: 'audio/wav' });
+
+            await sendAudioToAPI(outputFile);
+          } catch (error) {
+            console.error('FFmpeg processing error:', error);
+          }
+        }
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Recording error:', error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendAudioToAPI = async (audioFile) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio_file', audioFile);
+
+      const response = await axios.post('https://voice-ai-521223808142.us-central1.run.app/v1/voice-assistant-without-speech', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setStartTime(null)
+      setAssistantResponse(response.data.assistant_response);
+    } catch (error) {
+      console.error('API error:', error);
+    }
+  };
+
+  const handleClick = () => {
+    if(!isIphone) return;
+    if (isRecording) {
+      stopRecording(); // If already recording, stop it
+    } else {
+      startRecording(); // Otherwise, start recording
+    }
+  };
+
+  const handleMouseDown = () => {
+    if (!isIphone && !isRecording) {
+      startRecording(); // Only trigger on desktop if not recording
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isIphone && isRecording) {
+      stopRecording(); // Only stop recording on desktop when recording
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen py-2">
+      <main className="flex flex-col items-center justify-center w-full flex-1 px-20 text-center">
+        <h1 className="text-2xl font-bold mb-6">Voice Recorder</h1>
+
+        <div className="mb-6">
+          <button
+            onClick={isIphone ? handleClick: () => {}} // Handle click on mobile (iPhone or other)
+            onMouseDown={handleMouseDown} // Handle mouse down on desktop
+            onMouseUp={handleMouseUp} // Handle mouse up on desktop
+            onMouseLeave={handleMouseUp} // Stop recording if mouse leaves
+            className={`px-6 py-3 rounded-full transition-colors duration-300 ${
+              isRecording
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            {isRecording ? 'Recording...' : 'Hold to Record'}
+          </button>
         </div>
+
+        {assistantResponse && (
+          <div className="mt-4 p-4 bg-gray-100 rounded-lg max-w-md">
+            <p>{assistantResponse}</p>
+          </div>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
