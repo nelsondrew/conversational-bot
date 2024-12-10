@@ -1,0 +1,73 @@
+/* General container styling */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 0 2rem;
+    background-color: white;
+  }
+  
+  /* Main content styling */
+  .main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    flex: 1;
+    padding: 20px;
+    text-align: center;
+  }
+  
+  /* Title styling */
+  .title {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Button container styling */
+  .button-container {
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  /* Button styles */
+  .start-btn, .stop-btn {
+    padding: 1rem 1.5rem;
+    border-radius: 9999px;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .start-btn {
+    background-color: #3B82F6;
+    color: white;
+  }
+  
+  .start-btn:hover {
+    background-color: #2563EB;
+  }
+  
+  .stop-btn {
+    background-color: #EF4444;
+    color: white;
+  }
+  
+  .stop-btn:hover {
+    background-color: #DC2626;
+  }
+  
+  /* Response container styling */
+  .response-container {
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #F3F4F6;
+    border-radius: 0.5rem;
+    max-width: 24rem;
+  }
+  
