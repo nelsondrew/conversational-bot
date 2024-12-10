@@ -2,18 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import useIphoneDetect from '@/hooks/useIphoneDetect';
 
-
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
-  const [assistantResponse, setAssistantResponse] = useState('');
+  const [assistantResponse, setAssistantResponse] = useState(null); // Store the MP3 file
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [startTime, setStartTime] = useState(null); // Track the start time of the recording
   let st = null;
 
   const isIphone = useIphoneDetect(); // Detect if it's an iPhone
-
-  // Call the function to check and log supported mime types
 
   const startRecording = async () => {
     try {
@@ -39,7 +36,6 @@ export default function Home() {
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' }); // Use 'audio/mp4' type
         const audioFile = new File([audioBlob], 'recording.mp4', { type: 'audio/mp4' }); // File extension adjusted to '.ogg'
-
 
         // Convert .webm to .wav
         const wavFile = await convertWebMToWAV(audioFile);
@@ -137,21 +133,41 @@ export default function Home() {
       const formData = new FormData();
       formData.append('audio_file', audioFile);
 
-      const response = await axios.post('https://voice-ai-521223808142.us-central1.run.app/v1/voice-assistant-without-speech', formData, {
+      const response = await axios.post('https://voice-ai-521223808142.us-central1.run.app/v1/voice-assistant', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        responseType: 'blob', // Expect a binary audio response (blob)
       });
-      setAssistantResponse(response.data.assistant_response);
+
+      // Convert the blob into an audio URL
+      // const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(response.data);
+
+      // Save the audio URL to state
+      setAssistantResponse(audioUrl);
+
+     
     } catch (error) {
       console.error('API error:', error);
     }
   };
 
+  useEffect(() => {
+    if (assistantResponse) {
+      const audio = new Audio(assistantResponse);
+      // In browsers that don’t yet support this functionality,
+      // playPromise won’t be defined.
+      audio.play().catch((error) => {
+        console.error('Audio playback failed:', error);
+      });
+    }
+  }, [assistantResponse]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem', background: 'wheat' }}>
       <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '1.25rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem' , color : 'black'}}>Amaan&rsquo;s AI Assistant</h1>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem', color: 'black' }}>Amaan&rsquo;s AI Assistant</h1>
 
         <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <button
@@ -165,8 +181,8 @@ export default function Home() {
               marginBottom: '1.5rem',
               cursor: 'pointer',
               ...(isRecording && ({
-                display : 'none'
-              }))
+                display: 'none',
+              })),
             }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = '#2563eb')}
             onMouseLeave={(e) => (e.target.style.backgroundColor = '#3b82f6')}
@@ -183,8 +199,8 @@ export default function Home() {
               transition: 'background-color 0.3s',
               cursor: 'pointer',
               ...(!isRecording && ({
-                display : 'none'
-              }))
+                display: 'none',
+              })),
             }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = '#dc2626')}
             onMouseLeave={(e) => (e.target.style.backgroundColor = '#ef4444')}
@@ -195,11 +211,10 @@ export default function Home() {
 
         {assistantResponse && (
           <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '0.5rem', maxWidth: '24rem', fontWeight: 'bold', color: 'black' }}>
-            <p>{assistantResponse}</p>
+            <p>Response received, playing audio...</p>
           </div>
         )}
       </main>
     </div>
   );
-
 }
