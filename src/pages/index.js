@@ -11,6 +11,7 @@ export default function Home() {
   let st = null;
 
   const isIphone = useIphoneDetect(); // Detect if it's an iPhone
+  const audioRef = useRef(null); // Reference for audio playback
 
   const startRecording = async () => {
     try {
@@ -141,13 +142,11 @@ export default function Home() {
       });
 
       // Convert the blob into an audio URL
-      // const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(response.data);
 
       // Save the audio URL to state
       setAssistantResponse(audioUrl);
 
-     
     } catch (error) {
       console.error('API error:', error);
     }
@@ -156,13 +155,22 @@ export default function Home() {
   useEffect(() => {
     if (assistantResponse) {
       const audio = new Audio(assistantResponse);
-      // In browsers that don’t yet support this functionality,
-      // playPromise won’t be defined.
-      audio.play().catch((error) => {
-        console.error('Audio playback failed:', error);
-      });
+
+      // if (!isIphone) {
+        // Auto-play for non-iPhone devices
+        audio.autoplay = true;
+        audio.play().catch((error) => console.error('Autoplay failed:', error));
+      // }
+      
+      audioRef.current = audio;
     }
-  }, [assistantResponse]);
+  }, [assistantResponse, isIphone]);
+
+  const handlePlayAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.play().catch((error) => console.error('Audio playback failed:', error));
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '2rem', background: 'wheat' }}>
@@ -180,9 +188,7 @@ export default function Home() {
               transition: 'background-color 0.3s',
               marginBottom: '1.5rem',
               cursor: 'pointer',
-              ...(isRecording && ({
-                display: 'none',
-              })),
+              ...(isRecording && ({ display: 'none' })),
             }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = '#2563eb')}
             onMouseLeave={(e) => (e.target.style.backgroundColor = '#3b82f6')}
@@ -198,9 +204,7 @@ export default function Home() {
               borderRadius: '9999px',
               transition: 'background-color 0.3s',
               cursor: 'pointer',
-              ...(!isRecording && ({
-                display: 'none',
-              })),
+              ...(!isRecording && ({ display: 'none' })),
             }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = '#dc2626')}
             onMouseLeave={(e) => (e.target.style.backgroundColor = '#ef4444')}
@@ -212,6 +216,18 @@ export default function Home() {
         {assistantResponse && (
           <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '0.5rem', maxWidth: '24rem', fontWeight: 'bold', color: 'black' }}>
             <p>Response received, playing audio...</p>
+            <button
+              onClick={handlePlayAudio}
+              style={{
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#3b82f6',
+                color: '#fff',
+                borderRadius: '9999px',
+                cursor: 'pointer',
+              }}
+            >
+              Play Audio
+            </button>
           </div>
         )}
       </main>
