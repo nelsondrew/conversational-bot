@@ -8,6 +8,7 @@ export default function Home() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [startTime, setStartTime] = useState(null); // Track the start time of the recording
+  const [gptResponse, setGptResponse] = useState('');
   let st = null;
 
   const isIphone = useIphoneDetect(); // Detect if it's an iPhone
@@ -132,20 +133,60 @@ export default function Home() {
   const sendAudioToAPI = async (audioFile) => {
     try {
       const formData = new FormData();
-      formData.append('audio_file', audioFile);
+      formData.append('file', audioFile);
 
-      const response = await axios.post('https://voice-ai-521223808142.us-central1.run.app/v1/voice-assistant', formData, {
+      const response = await axios.post('https://voice-ai-agent-905979161414.asia-south1.run.app/process_audio', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
         responseType: 'blob', // Expect a binary audio response (blob)
       });
 
-      // Convert the blob into an audio URL
-      const audioUrl = URL.createObjectURL(response.data);
 
-      // Save the audio URL to state
-      setAssistantResponse(audioUrl);
+      // Convert the blob response into an ArrayBuffer
+      const arrayBuffer = await response.data.arrayBuffer();
+
+      // Convert the ArrayBuffer into a Uint8Array to use array methods like indexOf
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Define the separator (same as in the server-side code)
+      const separator = new TextEncoder().encode("\n--END_OF_TEXT--\n");
+
+      // Find the separator position in the Uint8Array
+      let separatorIndex = -1;
+      for (let i = 0; i < uint8Array.length - separator.length; i++) {
+        if (uint8Array.slice(i, i + separator.length).every((val, index) => val === separator[index])) {
+          separatorIndex = i;
+          break;
+        }
+      }
+
+      if (separatorIndex === -1) {
+        console.error("Separator not found in the response");
+      } else {
+        // Extract the GPT response JSON (text part)
+        const textBuffer = uint8Array.slice(0, separatorIndex);
+        const gptResponse = JSON.parse(new TextDecoder().decode(textBuffer));
+
+        // Extract the audio (binary part) after the separator
+        const audioBuffer = uint8Array.slice(separatorIndex + separator.length);
+
+        // Create a Blob for the audio part and create a URL for it
+        const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        // Now you can use gptResponse and audioUrl
+        if (typeof gptResponse === 'object' && gptResponse?.gpt_response)
+          setGptResponse(gptResponse?.gpt_response)
+        // Now you can use gptResponse and audioUrl
+        // console.log("GPT Response:", gptResponse);
+
+        // Convert the blob into an audio URL
+        // const audioUrl = URL.createObjectURL(response.data);
+
+        // Save the audio URL to state
+        setAssistantResponse(audioUrl);
+      }
 
     } catch (error) {
       console.error('API error:', error);
@@ -157,11 +198,11 @@ export default function Home() {
       const audio = new Audio(assistantResponse);
 
       // if (!isIphone) {
-        // Auto-play for non-iPhone devices
-        audio.autoplay = true;
-        audio.play().catch((error) => console.error('Autoplay failed:', error));
+      // Auto-play for non-iPhone devices
+      audio.autoplay = true;
+      audio.play().catch((error) => console.error('Autoplay failed:', error));
       // }
-      
+
       audioRef.current = audio;
     }
   }, [assistantResponse, isIphone]);
@@ -230,6 +271,21 @@ export default function Home() {
             </button>
           </div>
         )}
+
+        {gptResponse && (
+          <div style={{
+            background: "white",
+            border: '1px solid #f5f5f5',
+            borderRadius: '15px',
+            padding: "2rem",
+            marginTop: "3rem",
+            overflow: 'hidden'
+          }}>
+            {gptResponse}
+          </div>
+        )}
+
+
       </main>
     </div>
   );
