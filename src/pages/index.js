@@ -10,6 +10,7 @@ export default function Home() {
   const [startTime, setStartTime] = useState(null); // Track the start time of the recording
   const [gptResponse, setGptResponse] = useState('');
   let st = null;
+  const gcpUrl = 'https://voice-ai-agent-905979161414.asia-south1.run.app'
 
   const isIphone = useIphoneDetect(); // Detect if it's an iPhone
   const audioRef = useRef(null); // Reference for audio playback
@@ -124,6 +125,8 @@ export default function Home() {
     return buffer;
   };
 
+
+
   const writeString = (view, offset, str) => {
     for (let i = 0; i < str.length; i++) {
       view.setUint8(offset + i, str.charCodeAt(i));
@@ -135,13 +138,27 @@ export default function Home() {
       const formData = new FormData();
       formData.append('file', audioFile);
 
-      const response = await axios.post('https://voice-ai-agent-905979161414.asia-south1.run.app/process_audio', formData, {
+      const apiClient = axios.create({
+        baseURL: 'https://voice-ai-agent-905979161414.asia-south1.run.app',
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        responseType: 'blob', // Expect a binary audio response (blob)
       });
 
+
+      // Add request interceptor for additional logging
+      apiClient.interceptors.request.use(config => {
+        console.log('Request URL:', config.url);
+        console.log('Full Request Config:', config);
+        return config;
+      }, error => {
+        return Promise.reject(error);
+      });
+
+      // Use the full URL explicitly
+      const response = await apiClient.post('https://voice-ai-agent-905979161414.asia-south1.run.app/process_audio', formData, {
+        responseType: 'blob',
+      });
 
       // Convert the blob response into an ArrayBuffer
       const arrayBuffer = await response.data.arrayBuffer();
