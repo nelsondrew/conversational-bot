@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import useIphoneDetect from '@/hooks/useIphoneDetect';
+import MakeCallForm from '@/components/makeCall';
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -301,6 +302,8 @@ export default function Home() {
             {gptResponse}
           </div>
         )}
+
+        <MakeCallForm/>
 
 
       </main>

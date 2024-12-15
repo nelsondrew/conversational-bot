@@ -17,7 +17,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recorder-js": "^1.0.7",
-    "styled-components": "^6.1.13"
+    "styled-components": "^6.1.13",
+    "twilio": "^5.4.0"
   },
   "devDependencies": {
     "@types/styled-components": "^5.1.34",
